@@ -1,6 +1,10 @@
 import type { Booking, Capacity, Service, Vehicle } from "./types";
 
-export const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+export const apiBase =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NODE_ENV === "production"
+    ? "https://washwise-api.onrender.com/api"
+    : "http://localhost:4000/api");
 
 type AuthOptions = {
   getToken: () => Promise<string | null>;
