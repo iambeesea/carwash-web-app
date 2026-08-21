@@ -7,7 +7,6 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useAppAuth } from "./auth-provider";
 import { apiRequest, type Service, type Vehicle } from "@/lib/api";
 import { currency } from "@/lib/format";
-import { mockServices, mockVehicles } from "@/lib/mock-data";
 
 const vehicleTypes = ["sedan", "suv", "pickup", "van", "motorcycle"] as const;
 
@@ -22,8 +21,8 @@ export function BookingFlow() {
   const auth = useAppAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [services, setServices] = useState<Service[]>(mockServices);
-  const [vehicles, setVehicles] = useState<Vehicle[]>(mockVehicles);
+  const [services, setServices] = useState<Service[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [serviceId, setServiceId] = useState(searchParams.get("service") || "");
   const [vehicleId, setVehicleId] = useState("");
   const [scheduledAt, setScheduledAt] = useState(localDateTimeMinimum);
@@ -33,7 +32,7 @@ export function BookingFlow() {
   const [error, setError] = useState("");
   const [confirmation, setConfirmation] = useState<{ code: string; service: string } | null>(null);
 
-  const authOptions = useMemo(() => ({ getToken: auth.getToken, demoUserId: auth.isDemo ? auth.user?.id : undefined }), [auth.getToken, auth.isDemo, auth.user?.id]);
+  const authOptions = useMemo(() => ({ getToken: auth.getToken }), [auth.getToken]);
 
   useEffect(() => {
     if (auth.isLoaded && !auth.isSignedIn) router.replace("/sign-in");
@@ -50,10 +49,7 @@ export function BookingFlow() {
       setServiceId((current) => current || serviceData.services.find((item) => item.featured)?._id || serviceData.services[0]?._id || "");
       setVehicleId((current) => current || vehicleData.vehicles[0]?._id || "");
       if (!vehicleData.vehicles.length) setShowVehicleForm(true);
-    }).catch(() => {
-      setServiceId((current) => current || mockServices[1]!._id);
-      setVehicleId((current) => current || mockVehicles[0]!._id);
-    });
+    }).catch((caught) => setError(caught instanceof Error ? caught.message : "Unable to load booking options."));
   }, [auth.isSignedIn, authOptions]);
 
   async function addVehicle(event: FormEvent<HTMLFormElement>) {
@@ -90,11 +86,7 @@ export function BookingFlow() {
       });
       setConfirmation({ code: data.booking.bookingCode, service: selectedService?.name || "Car wash" });
     } catch (caught) {
-      if (auth.isDemo && String(caught).includes("fetch")) {
-        setConfirmation({ code: `WW-DEMO-${Math.random().toString(36).slice(2, 6).toUpperCase()}`, service: selectedService?.name || "Car wash" });
-      } else {
-        setError(caught instanceof Error ? caught.message : "Unable to create booking.");
-      }
+      setError(caught instanceof Error ? caught.message : "Unable to create booking.");
     } finally {
       setSubmitting(false);
     }

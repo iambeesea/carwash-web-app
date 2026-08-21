@@ -168,6 +168,14 @@ body:has(.auth-page) > .site-header, body:has(.portal-layout) > .site-header { d
 .demo-label { display: inline-flex; background: #fff5be; color: #8b6e00; font-size: 8px; font-weight: 800; letter-spacing: .18em; padding: 7px 10px; }
 .demo-auth-card h2 { font: 800 36px/1 var(--font-display), sans-serif; text-transform: uppercase; margin: 20px 0 10px; }
 .demo-auth-card > p { color: var(--muted); font-size: 12px; line-height: 1.7; margin-bottom: 26px; }
+.auth-form-card { display: grid; gap: 15px; }
+.auth-form-card > p { margin-bottom: 4px; }
+.auth-field { display: grid; gap: 7px; }
+.auth-field > span { color: #707374; font-size: 8px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.auth-form-card .button { margin-top: 4px; }
+.auth-form-card .form-error { margin: 0; }
+.auth-form-card a { color: #806600; font-weight: 800; }
+.google-signin-slot { min-height: 44px; display: grid; place-items: center; overflow: hidden; }
 .google-button { width: 100%; min-height: 52px; background: white; border: 1px solid #cfd0cd; display: flex; align-items: center; justify-content: center; gap: 13px; font-weight: 700; font-size: 12px; }
 .google-button svg { margin-left: auto; }
 .google-g { color: #4285f4; font: 800 18px/1 Arial, sans-serif; }

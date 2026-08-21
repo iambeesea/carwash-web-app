@@ -4,14 +4,15 @@
 
 Create a database user with `readWrite` access to the `washwise` database and allow Render to connect. Store the SRV URI only in Render as `MONGODB_URI`; never commit it.
 
-## Clerk and Google sign-in
+## Accounts and Google sign-in
 
-1. Create a Clerk application and enable email/password plus Google.
-2. Add the Vercel production URL to Clerk's allowed origins and redirect URLs.
-3. Add `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` to Vercel.
-4. Add `CLERK_JWKS_URL`, `CLERK_ISSUER`, and optionally `CLERK_SECRET_KEY` to Render.
-5. Add the Clerk user IDs of administrators to `ADMIN_CLERK_USER_IDS` as a comma-separated list.
-6. Set Render `DEMO_MODE=false` after real authentication is configured.
+1. Generate a random secret of at least 32 characters and add it to Render as `AUTH_JWT_SECRET`.
+2. Set Render `DEMO_MODE=false`.
+3. Add administrator email addresses to Render `ADMIN_EMAILS` as a comma-separated list.
+4. For Google sign-in, create a Web OAuth client in Google Cloud and add the Vercel production origin under Authorized JavaScript origins.
+5. Set its client ID as `NEXT_PUBLIC_GOOGLE_CLIENT_ID` on Vercel and `GOOGLE_CLIENT_ID` on Render.
+
+Clerk remains optional. If used, add `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` to Vercel and `CLERK_JWKS_URL`, `CLERK_ISSUER`, and `ADMIN_CLERK_USER_IDS` to Render.
 
 ## Render API
 
@@ -21,13 +22,13 @@ Use `render.yaml` from the repository or create a Node web service with root dir
 - Start: `npm start`
 - Health check: `/api/health`
 
-Required: `MONGODB_URI`, `FRONTEND_URL`. Authentication variables are required when `DEMO_MODE=false`.
+Required: `MONGODB_URI`, `FRONTEND_URL`, `AUTH_JWT_SECRET`, and `DEMO_MODE=false`.
 
 ## Vercel web app
 
 Import the repository, set root directory to `apps/web`, and add:
 
 - `NEXT_PUBLIC_API_URL=https://<render-service>.onrender.com/api`
-- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=<clerk-publishable-key>`
+- `NEXT_PUBLIC_GOOGLE_CLIENT_ID=<google-web-client-id>` (optional until Google OAuth is configured)
 
 After deployment, update Render `FRONTEND_URL` to the final Vercel origin.

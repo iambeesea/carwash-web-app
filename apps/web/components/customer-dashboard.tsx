@@ -10,15 +10,15 @@ import { LoyaltyProgress } from "./loyalty-progress";
 import { StatusPill } from "./status-pill";
 import { apiRequest, type Booking, type CustomerOverview, type Vehicle } from "@/lib/api";
 import { currency, dateTime } from "@/lib/format";
-import { mockBookings, mockVehicles } from "@/lib/mock-data";
 
 export function CustomerDashboard() {
   const router = useRouter();
   const auth = useAppAuth();
   const [overview, setOverview] = useState<CustomerOverview | null>(null);
-  const [bookings, setBookings] = useState<Booking[]>(mockBookings);
-  const [vehicles, setVehicles] = useState<Vehicle[]>(mockVehicles);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (auth.isLoaded && !auth.isSignedIn) router.replace("/sign-in");
@@ -26,7 +26,7 @@ export function CustomerDashboard() {
 
   useEffect(() => {
     if (!auth.isSignedIn) return;
-    const authOptions = { getToken: auth.getToken, demoUserId: auth.isDemo ? auth.user?.id : undefined };
+    const authOptions = { getToken: auth.getToken };
     Promise.all([
       apiRequest<CustomerOverview>("/me", authOptions),
       apiRequest<{ bookings: Booking[] }>("/bookings", authOptions),
@@ -38,9 +38,9 @@ export function CustomerDashboard() {
         setBookings(bookingData.bookings);
         setVehicles(vehicleData.vehicles);
       })
-      .catch(() => undefined)
+      .catch((caught) => setError(caught instanceof Error ? caught.message : "Unable to load your account."))
       .finally(() => setLoading(false));
-  }, [auth.getToken, auth.isDemo, auth.isSignedIn, auth.user?.id, router]);
+  }, [auth.getToken, auth.isSignedIn, router]);
 
   const upcoming = useMemo(
     () => bookings.find((booking) => ["pending", "confirmed", "queued", "washing", "drying", "ready"].includes(booking.status)),
@@ -59,6 +59,7 @@ export function CustomerDashboard() {
 
       <section className="portal-content">
         {loading ? <div className="inline-notice">Refreshing your live records…</div> : null}
+        {error ? <div className="form-error">{error}</div> : null}
         <div className="dashboard-grid dashboard-grid-top">
           <article className="dashboard-card upcoming-card">
             <div className="card-heading"><div><span>NEXT APPOINTMENT</span><h3>{upcoming ? upcoming.serviceName : "No wash scheduled"}</h3></div><CalendarDays /></div>
@@ -77,12 +78,12 @@ export function CustomerDashboard() {
               <div className="empty-state"><Sparkles /><p>Your calendar is clear. Pick a convenient time for your next wash.</p><Link href="/book">Schedule now <ArrowRight size={16} /></Link></div>
             )}
           </article>
-          <LoyaltyProgress stamps={overview?.loyalty.stamps ?? 5} />
+          <LoyaltyProgress stamps={overview?.loyalty.stamps ?? 0} />
           <article className="dashboard-card quick-stats-card">
             <div className="card-heading"><div><span>YOUR GARAGE</span><h3>At a glance</h3></div><CarFront /></div>
-            <div className="quick-stat"><strong>{overview?.completedWashes ?? history.filter((item) => item.status === "completed").length}</strong><span>Completed washes</span></div>
-            <div className="quick-stat"><strong>{overview?.vehicleCount ?? vehicles.length}</strong><span>Saved vehicles</span></div>
-            <div className="quick-stat"><strong>{overview?.loyalty.lifetimeStamps ?? 12}</strong><span>Lifetime stamps</span></div>
+            <div className="quick-stat"><strong>{overview?.completedWashes ?? 0}</strong><span>Completed washes</span></div>
+            <div className="quick-stat"><strong>{overview?.vehicleCount ?? 0}</strong><span>Saved vehicles</span></div>
+            <div className="quick-stat"><strong>{overview?.loyalty.lifetimeStamps ?? 0}</strong><span>Lifetime stamps</span></div>
           </article>
         </div>
 
@@ -90,26 +91,26 @@ export function CustomerDashboard() {
           <article className="dashboard-card vehicle-card" id="vehicles">
             <div className="card-heading"><div><span>SAVED VEHICLES</span><h3>My garage</h3></div><Link href="/book"><Plus size={17} /> Add</Link></div>
             <div className="vehicle-list">
-              {vehicles.map((vehicle, index) => (
+              {vehicles.length ? vehicles.map((vehicle, index) => (
                 <div className="vehicle-row" key={vehicle._id}>
                   <span className={`vehicle-thumb vehicle-${index % 2}`}><CarFront /></span>
                   <div><strong>{vehicle.model}</strong><span>{vehicle.color || vehicle.type}</span></div>
                   <code>{vehicle.plateNumber}</code>
                 </div>
-              ))}
+              )) : <div className="empty-table">No vehicles saved yet.</div>}
             </div>
           </article>
           <article className="dashboard-card history-card" id="history">
             <div className="card-heading"><div><span>RECENT ACTIVITY</span><h3>Wash history</h3></div><Clock3 /></div>
             <div className="history-list">
-              {(history.length ? history : mockBookings.slice(1)).map((booking) => (
+              {history.length ? history.map((booking) => (
                 <div className="history-row" key={booking._id}>
                   <span className="history-date">{new Date(booking.scheduledAt).toLocaleDateString("en-PH", { month: "short", day: "numeric" })}</span>
                   <div><strong>{booking.serviceName}</strong><span>{booking.vehicle.plateNumber} • {booking.bookingCode}</span></div>
                   <StatusPill status={booking.status} />
                   <strong>{currency.format(booking.paidAmount || booking.price)}</strong>
                 </div>
-              ))}
+              )) : <div className="empty-table">Your completed washes will appear here.</div>}
             </div>
           </article>
         </div>
