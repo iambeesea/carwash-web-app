@@ -6,47 +6,28 @@ import { useRouter } from "next/navigation";
 import { AccountShell } from "./account-shell";
 import { useAppAuth } from "./auth-provider";
 import { StatusPill } from "./status-pill";
-import { apiRequest, type AdminDashboardData, type Booking, type Capacity, type Service, type Vehicle } from "@/lib/api";
+import { apiRequest, type AdminDashboardData, type Booking, type Capacity, type Service } from "@/lib/api";
 import { currency, dateTime } from "@/lib/format";
-import { mockCapacity, mockServices, mockVehicles } from "@/lib/mock-data";
 
 const queueStatuses: Booking["status"][] = ["queued", "washing", "drying", "ready"];
-
-const mockQueue: Booking[] = [
-  { _id: "q1", bookingCode: "WW-260819-A1", customer: { _id: "u1", name: "Marco Reyes", phone: "09171234567" }, vehicle: { ...mockVehicles[0]!, plateNumber: "NDR 2481" }, serviceName: "Signature Shine", scheduledAt: new Date(Date.now() - 32 * 60000).toISOString(), status: "washing", source: "walk_in", price: 450, paidAmount: 0, paymentStatus: "unpaid", bay: 1, loyaltyStampIssued: false },
-  { _id: "q2", bookingCode: "WW-260819-B2", customer: { _id: "u2", name: "Ana Santos" }, vehicle: { ...mockVehicles[1]!, plateNumber: "CAW 9087" }, serviceName: "Ultimate Detail", scheduledAt: new Date(Date.now() - 18 * 60000).toISOString(), status: "drying", source: "online", price: 950, paidAmount: 0, paymentStatus: "unpaid", bay: 2, loyaltyStampIssued: false },
-  { _id: "q3", bookingCode: "WW-260819-C3", customer: { _id: "u3", name: "Leo Garcia" }, vehicle: { ...mockVehicles[0]!, plateNumber: "NCK 4420", model: "Honda City 2021" }, serviceName: "Express Wash", scheduledAt: new Date(Date.now() - 8 * 60000).toISOString(), status: "queued", source: "walk_in", price: 250, paidAmount: 0, paymentStatus: "unpaid", loyaltyStampIssued: false }
-];
-
-const mockDashboard: AdminDashboardData = {
-  revenue: { week: { total: 18450, count: 39 }, month: { total: 72800, count: 156 }, year: { total: 624900, count: 1380 } },
-  capacity: mockCapacity,
-  todayBookings: 14,
-  pendingBookings: 5,
-  dailyRevenue: [
-    { _id: "Mon", total: 2100 }, { _id: "Tue", total: 3400 }, { _id: "Wed", total: 2800 },
-    { _id: "Thu", total: 4200 }, { _id: "Fri", total: 3650 }, { _id: "Sat", total: 5100 }, { _id: "Sun", total: 2600 }
-  ],
-  recent: mockQueue
-};
 
 export function AdminDashboard() {
   const auth = useAppAuth();
   const router = useRouter();
-  const [dashboard, setDashboard] = useState<AdminDashboardData>(mockDashboard);
-  const [queue, setQueue] = useState<Booking[]>(mockQueue);
-  const [services, setServices] = useState<Service[]>(mockServices);
+  const [dashboard, setDashboard] = useState<AdminDashboardData | null>(null);
+  const [queue, setQueue] = useState<Booking[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
   const [walkInOpen, setWalkInOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const authOptions = useMemo(() => ({ getToken: auth.getToken, demoUserId: auth.isDemo ? auth.user?.id : undefined }), [auth.getToken, auth.isDemo, auth.user?.id]);
+  const authOptions = useMemo(() => ({ getToken: auth.getToken }), [auth.getToken]);
 
   useEffect(() => {
     if (auth.isLoaded && !auth.isSignedIn) router.replace("/sign-in");
-    if (auth.user?.demoRole === "customer") router.replace("/dashboard");
-  }, [auth.isLoaded, auth.isSignedIn, auth.user?.demoRole, router]);
+    if (auth.user?.role === "customer") router.replace("/dashboard");
+  }, [auth.isLoaded, auth.isSignedIn, auth.user?.role, router]);
 
   useEffect(() => {
     if (!auth.isSignedIn) return;
@@ -58,10 +39,10 @@ export function AdminDashboard() {
       setDashboard(dashboardData);
       setQueue(queueData.queue);
       setServices(serviceData.services);
-    }).catch(() => undefined);
+    }).catch((caught) => setMessage(caught instanceof Error ? caught.message : "Unable to load live operations data."));
   }, [auth.isSignedIn, authOptions]);
 
-  const chartMax = Math.max(...dashboard.dailyRevenue.map((day) => day.total), 1);
+  const chartMax = dashboard ? Math.max(...dashboard.dailyRevenue.map((day) => day.total), 1) : 1;
 
   async function advanceBooking(booking: Booking) {
     const nextStatus: Partial<Record<Booking["status"], Booking["status"]>> = { queued: "washing", washing: "drying", drying: "ready", ready: "completed" };
@@ -73,10 +54,7 @@ export function AdminDashboard() {
       setQueue((current) => status === "completed" ? current.filter((item) => item._id !== booking._id) : current.map((item) => item._id === booking._id ? { ...item, status } : item));
       setMessage(`${booking.vehicle.plateNumber} moved to ${status}.`);
     } catch (caught) {
-      if (auth.isDemo) {
-        setQueue((current) => status === "completed" ? current.filter((item) => item._id !== booking._id) : current.map((item) => item._id === booking._id ? { ...item, status } : item));
-        setMessage(`Demo: ${booking.vehicle.plateNumber} moved to ${status}.`);
-      } else setMessage(caught instanceof Error ? caught.message : "Unable to update booking.");
+      setMessage(caught instanceof Error ? caught.message : "Unable to update booking.");
     }
   }
 
@@ -97,16 +75,7 @@ export function AdminDashboard() {
       setWalkInOpen(false);
       setMessage(`${data.booking.vehicle.plateNumber} was added to the queue.`);
     } catch (caught) {
-      if (auth.isDemo) {
-        const service = services.find((item) => item._id === form.get("serviceId")) || services[0]!;
-        const booking: Booking = {
-          _id: `demo-${Date.now()}`, bookingCode: `WW-DEMO-${Date.now().toString().slice(-4)}`,
-          customer: { _id: "guest", name: String(form.get("customerName")) },
-          vehicle: { _id: `vehicle-${Date.now()}`, plateNumber: String(form.get("plateNumber")).toUpperCase(), model: String(form.get("model")), type: form.get("vehicleType") as Vehicle["type"] },
-          serviceName: service.name, scheduledAt: new Date().toISOString(), status: "queued", source: "walk_in", price: service.price, paidAmount: 0, paymentStatus: "unpaid", loyaltyStampIssued: false
-        };
-        setQueue((current) => [...current, booking]); setWalkInOpen(false); setMessage(`${booking.vehicle.plateNumber} was added in demo mode.`);
-      } else setMessage(caught instanceof Error ? caught.message : "Unable to add walk-in.");
+      setMessage(caught instanceof Error ? caught.message : "Unable to add walk-in.");
     } finally { setSaving(false); }
   }
 
@@ -117,15 +86,14 @@ export function AdminDashboard() {
     const acceptingWalkIns = form.get("acceptingWalkIns") === "on";
     try {
       await apiRequest("/admin/settings", authOptions, { method: "PATCH", body: JSON.stringify({ maxActiveCars: nextCapacity, acceptingWalkIns }) });
-      setDashboard((current) => ({ ...current, capacity: { ...current.capacity, capacity: nextCapacity, availableSlots: Math.max(0, nextCapacity - current.capacity.activeCars), acceptingWalkIns } }));
+      setDashboard((current) => current ? ({ ...current, capacity: { ...current.capacity, capacity: nextCapacity, availableSlots: Math.max(0, nextCapacity - current.capacity.activeCars), acceptingWalkIns } }) : current);
       setSettingsOpen(false); setMessage("Operations settings updated.");
     } catch (caught) {
-      if (auth.isDemo) { setDashboard((current) => ({ ...current, capacity: { ...current.capacity, capacity: nextCapacity, availableSlots: Math.max(0, nextCapacity - current.capacity.activeCars), acceptingWalkIns } })); setSettingsOpen(false); setMessage("Demo operations settings updated."); }
-      else setMessage(caught instanceof Error ? caught.message : "Unable to save settings.");
+      setMessage(caught instanceof Error ? caught.message : "Unable to save settings.");
     }
   }
 
-  if (!auth.isLoaded || !auth.isSignedIn) return <div className="page-loader">Opening the operations console…</div>;
+  if (!auth.isLoaded || !auth.isSignedIn || !dashboard) return <div className="page-loader">Opening the operations console…</div>;
 
   return (
     <AccountShell admin>

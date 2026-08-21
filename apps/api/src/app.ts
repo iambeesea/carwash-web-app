@@ -5,6 +5,7 @@ import morgan from "morgan";
 import { config } from "./config.js";
 import { errorHandler, notFound } from "./middleware/error.js";
 import { adminRouter } from "./routes/admin.js";
+import { authRouter } from "./routes/auth.js";
 import { customerRouter } from "./routes/customer.js";
 import { publicRouter } from "./routes/public.js";
 
@@ -27,6 +28,7 @@ app.use(express.json({ limit: "100kb" }));
 app.use(morgan(config.NODE_ENV === "production" ? "combined" : "dev"));
 
 app.use("/api", publicRouter);
+app.use("/api", authRouter);
 app.use("/api", customerRouter);
 app.use("/api/admin", adminRouter);
 

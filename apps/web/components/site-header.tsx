@@ -17,7 +17,7 @@ export function SiteHeader() {
   const pathname = usePathname();
   const { user, isSignedIn, signOut } = useAppAuth();
   const [open, setOpen] = useState(false);
-  const isAdmin = pathname.startsWith("/admin") || user?.demoRole === "admin";
+  const isAdmin = pathname.startsWith("/admin") || user?.role === "admin";
 
   useEffect(() => setOpen(false), [pathname]);
 

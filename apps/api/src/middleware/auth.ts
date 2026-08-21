@@ -1,7 +1,8 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 import type { NextFunction, Request, Response } from "express";
-import { adminUserIds, config } from "../config.js";
+import { adminEmails, adminUserIds, config } from "../config.js";
 import { User } from "../models/User.js";
+import { verifySessionToken } from "../utils/auth.js";
 
 let jwks: ReturnType<typeof createRemoteJWKSet> | undefined;
 
@@ -32,27 +33,40 @@ async function verifyClerkToken(token: string) {
 
 export async function requireAuth(request: Request, response: Response, next: NextFunction) {
   try {
+    const token = getBearerToken(request);
     let authId: string;
     let email = "";
     let name = "WashWise Customer";
     let avatarUrl: string | undefined;
 
-    if (config.DEMO_MODE) {
-      const demoId = request.header("x-demo-user-id") || "demo-customer";
-      authId = demoId === "demo-admin" ? "demo-admin" : "demo-customer";
-      email = authId === "demo-admin" ? "admin@washwise.demo" : "customer@washwise.demo";
-      name = authId === "demo-admin" ? "Alex Admin" : "Jamie Cruz";
-    } else {
-      const token = getBearerToken(request);
-      if (!token) return response.status(401).json({ error: "Sign in to continue." });
+    if (token) {
+      try {
+        const payload = await verifySessionToken(token);
+        const user = await User.findOne({ authId: payload.sub });
+        if (!user) return response.status(401).json({ error: "This account no longer exists." });
+        request.authId = user.authId;
+        request.authUser = user;
+        return next();
+      } catch (localError) {
+        if (!config.CLERK_JWKS_URL) throw localError;
+      }
+
       const payload = await verifyClerkToken(token);
       authId = payload.sub!;
       email = stringClaim(payload, "email", "primary_email_address") || "";
       name = stringClaim(payload, "name", "full_name", "first_name") || name;
       avatarUrl = stringClaim(payload, "image_url", "picture");
+    } else if (config.DEMO_MODE && request.header("x-demo-user-id")) {
+      const demoId = request.header("x-demo-user-id") || "demo-customer";
+      authId = demoId === "demo-admin" ? "demo-admin" : "demo-customer";
+      email = authId === "demo-admin" ? "admin@washwise.demo" : "customer@washwise.demo";
+      name = authId === "demo-admin" ? "Alex Admin" : "Jamie Cruz";
+    } else {
+      return response.status(401).json({ error: "Sign in to continue." });
     }
 
-    const isAdmin = authId === "demo-admin" || adminUserIds.has(authId);
+    const existing = await User.findOne({ authId });
+    const isAdmin = authId === "demo-admin" || adminUserIds.has(authId) || adminEmails.has(email) || existing?.role === "admin";
     const user = await User.findOneAndUpdate(
       { authId },
       {
